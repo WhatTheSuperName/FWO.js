@@ -18,7 +18,6 @@ let currentPage = 'home';
 document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged(async (user) => {
         currentUser = user;
-        updateAuthSection();
         
         if (user) {
             await checkIfAdmin(user.uid);
@@ -27,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
             isAdmin = false;
         }
         
+        updateAuthSection();
         showPage(currentPage);
     });
 
@@ -164,32 +164,47 @@ function getAdminRequestsPage() {
             <table class="requests-table">
                 <thead>
                     <tr>
-                        <th>USER</th>
+                        <th>USERNAME</th>
                         <th>COUNTRY</th>
                         <th>REASON</th>
+                        <th>DATE</th>
                         <th>STATUS</th>
-                        <th>ACTION</th>
+                        <th>ACTION / RESPONSE</th>
                     </tr>
                 </thead>
                 <tbody id="requestsTableBody">
-                    <tr><td colspan="5">LOADING REQUESTS...</td></tr>
+                    <tr><td colspan="6">LOADING REQUESTS...</td></tr>
                 </tbody>
             </table>
         </div>
     `;
 }
 
-function updateAuthSection() {
+async function updateAuthSection() {
     const authSection = document.getElementById('authSection');
     
     if (currentUser) {
-        authSection.innerHTML = `
-            <div style="margin-bottom: 10px;">
-                > LOGGED AS: ${currentUser.displayName || currentUser.email}<br>
-                ${isAdmin ? '> STATUS: ADMIN' : '> STATUS: USER'}
-            </div>
-            <button class="auth-btn" onclick="logout()">[LOGOUT]</button>
-        `;
+        try {
+            const userDoc = await db.collection('users').doc(currentUser.uid).get();
+            const userData = userDoc.data();
+            const username = userData?.username || currentUser.displayName || currentUser.email;
+            
+            authSection.innerHTML = `
+                <div style="margin-bottom: 10px;">
+                    > LOGGED AS: ${username}<br>
+                    > STATUS: ${isAdmin ? 'ADMIN' : 'USER'}
+                </div>
+                <button class="auth-btn" onclick="logout()">[LOGOUT]</button>
+            `;
+        } catch (error) {
+            authSection.innerHTML = `
+                <div style="margin-bottom: 10px;">
+                    > LOGGED AS: ${currentUser.displayName || currentUser.email}<br>
+                    > STATUS: ${isAdmin ? 'ADMIN' : 'USER'}
+                </div>
+                <button class="auth-btn" onclick="logout()">[LOGOUT]</button>
+            `;
+        }
     } else {
         authSection.innerHTML = `
             <input type="text" id="loginUsername" class="auth-input" placeholder="USERNAME">
@@ -204,23 +219,20 @@ function updateAuthSection() {
         `;
     }
 
+    document.querySelectorAll('.nav-link').forEach(link => {
+        if (link.getAttribute('onclick') && link.getAttribute('onclick').includes('adminRequests')) {
+            link.remove();
+        }
+    });
+
     if (isAdmin) {
         const navLinks = document.querySelector('.nav-links');
-        let adminLinkExists = false;
-        document.querySelectorAll('.nav-link').forEach(link => {
-            if (link.getAttribute('onclick') && link.getAttribute('onclick').includes('adminRequests')) {
-                adminLinkExists = true;
-            }
-        });
-        
-        if (!adminLinkExists) {
-            const adminLink = document.createElement('a');
-            adminLink.href = '#';
-            adminLink.className = 'nav-link';
-            adminLink.setAttribute('onclick', 'showPage(\'adminRequests\')');
-            adminLink.textContent = '[ADMIN PANEL]';
-            navLinks.appendChild(adminLink);
-        }
+        const adminLink = document.createElement('a');
+        adminLink.href = '#';
+        adminLink.className = 'nav-link';
+        adminLink.setAttribute('onclick', 'showPage(\'adminRequests\')');
+        adminLink.textContent = '[ADMIN PANEL]';
+        navLinks.appendChild(adminLink);
     }
 }
 
@@ -275,6 +287,7 @@ async function register() {
         await db.collection('users').doc(user.uid).set({
             username: username,
             email: email,
+            isAdmin: false,
             createdAt: new Date()
         });
         
@@ -347,7 +360,7 @@ async function loadVPNRequests() {
         let html = '';
         
         if (snapshot.empty) {
-            html = '<tr><td colspan="5">NO REQUESTS FOUND</td></tr>';
+            html = '<tr><td colspan="6">NO REQUESTS FOUND</td></tr>';
         } else {
             snapshot.forEach(doc => {
                 const request = doc.data();
@@ -356,15 +369,16 @@ async function loadVPNRequests() {
                 
                 html += `
                     <tr>
-                        <td>${request.username || 'Unknown'}</td>
+                        <td><strong>${request.username || 'Unknown'}</strong></td>
                         <td>${request.country || 'Unknown'}</td>
                         <td>${request.reason || 'No reason provided'}</td>
-                        <td>${request.status || 'pending'}</td>
+                        <td>${createdAt}</td>
+                        <td>${request.status === 'pending' ? '⏳ PENDING' : '✅ ANSWERED'}</td>
                         <td>
                             ${request.status === 'pending' ? `
-                                <input type="text" id="response-${requestId}" class="admin-response-input" placeholder="YOUR RESPONSE">
-                                <button class="admin-response-btn" onclick="respondToRequest('${requestId}')">SEND</button>
-                            ` : request.adminResponse || 'NO RESPONSE YET'}
+                                <input type="text" id="response-${requestId}" class="admin-response-input" placeholder="TYPE YOUR RESPONSE HERE">
+                                <button class="admin-response-btn" onclick="respondToRequest('${requestId}')">SEND RESPONSE</button>
+                            ` : request.adminResponse || 'No response yet'}
                         </td>
                     </tr>
                 `;
