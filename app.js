@@ -1,5 +1,3 @@
-// ==================== FIREBASE КОНФИГУРАЦИЯ ====================
-// ТВОИ ДАННЫЕ ИЗ FIREBASE
 const firebaseConfig = {
     apiKey: "AIzaSyAvxon5UX3WOR2178vd4E0_oKNCCAE3EDo",
     authDomain: "fwo-project-8b52b.firebaseapp.com",
@@ -9,27 +7,21 @@ const firebaseConfig = {
     appId: "1:915131259753:web:216cbc6ba2a86bdf7dfbf8"
 };
 
-// Инициализация Firebase
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
 let currentUser = null;
 let isAdmin = false;
 let currentPage = 'home';
 
-// ==================== ИНИЦИАЛИЗАЦИЯ ====================
 document.addEventListener('DOMContentLoaded', () => {
-    // Проверяем состояние авторизации
     auth.onAuthStateChanged(async (user) => {
         currentUser = user;
         updateAuthSection();
         
         if (user) {
-            // Проверяем, является ли пользователь админом
             await checkIfAdmin(user.uid);
-            // Проверяем новые сообщения
             checkForNewMessages();
         } else {
             isAdmin = false;
@@ -38,15 +30,12 @@ document.addEventListener('DOMContentLoaded', () => {
         showPage(currentPage);
     });
 
-    // Настройка модального окна
     setupModal();
 });
 
-// ==================== НАВИГАЦИЯ ====================
 function showPage(pageId) {
     currentPage = pageId;
     
-    // Обновляем активную ссылку
     document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.remove('active');
         if (link.getAttribute('onclick') && link.getAttribute('onclick').includes(pageId)) {
@@ -81,16 +70,10 @@ function showPage(pageId) {
     }
 }
 
-// ==================== СТРАНИЦЫ ====================
 function getHomePage() {
     return `
         <div class="page">
             <h1>FWO - FREEDOM WARRIORS ONLINE</h1>
-            <div class="status-message">
-                > SYSTEM STATUS: ONLINE<br>
-                > ENCRYPTION: ACTIVE<br>
-                > NETWORK: SECURE
-            </div>
             <p>WE ARE A GROUP OF SPECIALIZED INDIVIDUALS FIGHTING FOR FREEDOM ON THE INTERNET.</p>
             <p>STARTING NOW, WE WRITE THE HISTORY OF THE INTERNET.</p>
             <p>OUR MISSION IS TO PROVIDE ACCESS TO INFORMATION FOR EVERYONE, EVERYWHERE.</p>
@@ -154,7 +137,7 @@ function getAboutPage() {
     return `
         <div class="page">
             <h1>ABOUT FWO</h1>
-            <p>FWO (FREEDOM WARRIORS ONLINE) WAS FOUNDED IN 2024 WITH A SINGLE MISSION:</p>
+            <p>FWO (FREEDOM WARRIORS ONLINE) WAS FOUNDED IN 2026 WITH A SINGLE MISSION:</p>
             <p>TO PROVIDE UNRESTRICTED ACCESS TO INFORMATION FOR PEOPLE IN RESTRICTED REGIONS.</p>
             <p>WE BELIEVE THAT ACCESS TO INFORMATION IS A BASIC HUMAN RIGHT.</p>
             <p>OUR TEAM CONSISTS OF SECURITY EXPERTS, NETWORK ENGINEERS, AND FREEDOM ACTIVISTS.</p>
@@ -167,11 +150,8 @@ function getContactPage() {
     return `
         <div class="page">
             <h1>CONTACT US</h1>
-            <p>FOR SECURITY REASONS, WE DO NOT USE TRADITIONAL CONTACT METHODS.</p>
-            <p>IF YOU NEED TO REACH US:</p>
-            <p>> MATRIX: @fwo:matrix.org</p>
-            <p>> SESSION: 0542f8e3a1b9c7d4e6f8a2b0c3d5e7f9</p>
-            <p>> XMPP: fwo@jabber.org</p>
+            <p>FOR SECURITY REASONS, WE USE ONLY SECURE CHANNELS:</p>
+            <p>> TG: @tg_fwo</p>
             <p>FOR VPN REQUESTS, PLEASE USE THE VPN PAGE.</p>
         </div>
     `;
@@ -199,34 +179,31 @@ function getAdminRequestsPage() {
     `;
 }
 
-// ==================== ФУНКЦИИ АВТОРИЗАЦИИ ====================
 function updateAuthSection() {
     const authSection = document.getElementById('authSection');
     
     if (currentUser) {
         authSection.innerHTML = `
             <div style="margin-bottom: 10px;">
-                > LOGGED AS: ${currentUser.email}<br>
+                > LOGGED AS: ${currentUser.displayName || currentUser.email}<br>
                 ${isAdmin ? '> STATUS: ADMIN' : '> STATUS: USER'}
             </div>
             <button class="auth-btn" onclick="logout()">[LOGOUT]</button>
         `;
     } else {
         authSection.innerHTML = `
-            <input type="email" id="loginEmail" class="auth-input" placeholder="EMAIL">
+            <input type="text" id="loginUsername" class="auth-input" placeholder="USERNAME">
             <input type="password" id="loginPassword" class="auth-input" placeholder="PASSWORD">
             <button class="auth-btn" onclick="login()">[LOGIN]</button>
             <button class="auth-btn" onclick="showRegister()">[REGISTER]</button>
             <div id="registerFields" style="display: none;">
                 <input type="text" id="regUsername" class="auth-input" placeholder="USERNAME">
-                <input type="email" id="regEmail" class="auth-input" placeholder="EMAIL">
                 <input type="password" id="regPassword" class="auth-input" placeholder="PASSWORD">
                 <button class="auth-btn" onclick="register()">[CREATE ACCOUNT]</button>
             </div>
         `;
     }
 
-    // Добавляем ссылку на админку если пользователь админ
     if (isAdmin) {
         const navLinks = document.querySelector('.nav-links');
         let adminLinkExists = false;
@@ -252,16 +229,24 @@ function showRegister() {
 }
 
 async function login() {
-    const email = document.getElementById('loginEmail').value;
+    const username = document.getElementById('loginUsername').value;
     const password = document.getElementById('loginPassword').value;
     
-    if (!email || !password) {
-        showNotification('PLEASE ENTER EMAIL AND PASSWORD');
+    if (!username || !password) {
+        showNotification('PLEASE ENTER USERNAME AND PASSWORD');
         return;
     }
     
     try {
-        await auth.signInWithEmailAndPassword(email, password);
+        const userSnapshot = await db.collection('users').where('username', '==', username).get();
+        
+        if (userSnapshot.empty) {
+            showNotification('USER NOT FOUND');
+            return;
+        }
+        
+        const userData = userSnapshot.docs[0].data();
+        await auth.signInWithEmailAndPassword(userData.email, password);
         showNotification('LOGIN SUCCESSFUL');
     } catch (error) {
         showNotification('ERROR: ' + error.message);
@@ -270,19 +255,23 @@ async function login() {
 
 async function register() {
     const username = document.getElementById('regUsername').value;
-    const email = document.getElementById('regEmail').value;
     const password = document.getElementById('regPassword').value;
     
-    if (!username || !email || !password) {
+    if (!username || !password) {
         showNotification('PLEASE FILL ALL FIELDS');
         return;
     }
     
     try {
+        const email = `${username.toLowerCase()}@fwo.local`;
+        
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
         
-        // Сохраняем имя пользователя в Firestore
+        await user.updateProfile({
+            displayName: username
+        });
+        
         await db.collection('users').doc(user.uid).set({
             username: username,
             email: email,
@@ -300,7 +289,6 @@ async function logout() {
     showPage('home');
 }
 
-// ==================== ПРОВЕРКА АДМИНА ====================
 async function checkIfAdmin(userId) {
     try {
         const userDoc = await db.collection('users').doc(userId).get();
@@ -311,7 +299,6 @@ async function checkIfAdmin(userId) {
     }
 }
 
-// ==================== ФУНКЦИИ ДЛЯ VPN ====================
 function showRequestForm() {
     document.getElementById('requestForm').style.display = 'block';
 }
@@ -328,11 +315,9 @@ async function submitVPNRequest(event) {
     }
     
     try {
-        // Получаем username пользователя
         const userDoc = await db.collection('users').doc(currentUser.uid).get();
         const username = userDoc.data()?.username || currentUser.email;
         
-        // Сохраняем заявку
         await db.collection('vpn_requests').add({
             userId: currentUser.uid,
             username: username,
@@ -352,7 +337,6 @@ async function submitVPNRequest(event) {
     }
 }
 
-// ==================== АДМИН ФУНКЦИИ ====================
 async function loadVPNRequests() {
     try {
         const snapshot = await db.collection('vpn_requests')
@@ -403,7 +387,6 @@ async function respondToRequest(requestId) {
     }
     
     try {
-        // Получаем информацию о заявке
         const requestDoc = await db.collection('vpn_requests').doc(requestId).get();
         const requestData = requestDoc.data();
         
@@ -412,14 +395,12 @@ async function respondToRequest(requestId) {
             return;
         }
         
-        // Обновляем статус заявки
         await db.collection('vpn_requests').doc(requestId).update({
             status: 'answered',
             adminResponse: response,
             respondedAt: new Date()
         });
         
-        // Отправляем сообщение пользователю
         await db.collection('admin_messages').add({
             userId: requestData.userId,
             message: `YOUR VPN REQUEST HAS BEEN PROCESSED.\n\nADMIN RESPONSE: ${response}`,
@@ -428,13 +409,12 @@ async function respondToRequest(requestId) {
         });
         
         showNotification('RESPONSE SENT TO USER');
-        loadVPNRequests(); // Перезагружаем таблицу
+        loadVPNRequests();
     } catch (error) {
         showNotification('ERROR: ' + error.message);
     }
 }
 
-// ==================== ПРОВЕРКА НОВЫХ СООБЩЕНИЙ ====================
 async function checkForNewMessages() {
     if (!currentUser) return;
     
@@ -453,11 +433,9 @@ async function checkForNewMessages() {
 }
 
 function showMessageBadge(count) {
-    // Удаляем старый бейдж, если есть
     const oldBadge = document.querySelector('.message-badge');
     if (oldBadge) oldBadge.remove();
     
-    // Создаем новый бейдж
     const badge = document.createElement('div');
     badge.className = 'message-badge';
     badge.innerHTML = `[${count} NEW MESSAGE${count > 1 ? 'S' : ''}]`;
@@ -484,14 +462,11 @@ async function showMessages() {
                 </div>
             `;
             
-            // Отмечаем как прочитанное
             db.collection('admin_messages').doc(doc.id).update({ read: true });
         });
         
-        // Показываем в модальном окне
         showModal('YOUR MESSAGES', messages || '<p>NO MESSAGES</p>');
         
-        // Удаляем бейдж
         const badge = document.querySelector('.message-badge');
         if (badge) badge.remove();
     } catch (error) {
@@ -499,7 +474,6 @@ async function showMessages() {
     }
 }
 
-// ==================== МОДАЛЬНОЕ ОКНО ====================
 function setupModal() {
     const modal = document.getElementById('messageModal');
     const span = document.getElementsByClassName('close')[0];
@@ -527,7 +501,6 @@ function showModal(title, content) {
     modal.style.display = 'block';
 }
 
-// ==================== УВЕДОМЛЕНИЯ ====================
 function showNotification(message) {
     const notification = document.createElement('div');
     notification.className = 'notification';
