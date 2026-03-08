@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FWO - Freedom Warriors Online</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Левое меню -->
+        <nav class="sidebar">
+            <div class="logo">FWO</div>
+            <div class="nav-links">
+                <a href="#" onclick="showPage('home')" class="nav-link active">[HOME]</a>
+                <a href="#" onclick="showPage('vpn')" class="nav-link">[VPN]</a>
+                <a href="#" onclick="showPage('about')" class="nav-link">[ABOUT]</a>
+                <a href="#" onclick="showPage('contact')" class="nav-link">[CONTACT]</a>
+            </div>
+            <div class="auth-section" id="authSection">
+                <!-- Динамически меняется через JS -->
+            </div>
+        </nav>
+
+        <!-- Основной контент -->
+        <main class="content" id="mainContent">
+            <!-- Динамически загружается через JS -->
+        </main>
+
+        <!-- Модальное окно для сообщений -->
+        <div id="messageModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <div id="modalBody"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
