@@ -16,20 +16,17 @@ let isAdmin = false;
 let currentPage = 'home';
 
 document.addEventListener('DOMContentLoaded', () => {
-    auth.onAuthStateChanged(async (user) => {
+    auth.onAuthStateChanged((user) => {
         currentUser = user;
-        
         if (user) {
-            await checkIfAdmin(user.uid);
+            checkIfAdmin(user.uid);
             checkForNewMessages();
         } else {
             isAdmin = false;
         }
-        
         updateAuthSection();
         showPage(currentPage);
     });
-
     setupModal();
 });
 
@@ -45,28 +42,18 @@ function showPage(pageId) {
 
     const content = document.getElementById('mainContent');
     
-    switch(pageId) {
-        case 'home':
-            content.innerHTML = getHomePage();
-            break;
-        case 'vpn':
-            content.innerHTML = getVPNPage();
-            break;
-        case 'about':
-            content.innerHTML = getAboutPage();
-            break;
-        case 'contact':
-            content.innerHTML = getContactPage();
-            break;
-        case 'adminRequests':
-            if (!isAdmin) {
-                showNotification('ACCESS DENIED');
-                showPage('home');
-                return;
-            }
-            content.innerHTML = getAdminRequestsPage();
-            loadVPNRequests();
-            break;
+    if (pageId === 'home') content.innerHTML = getHomePage();
+    else if (pageId === 'vpn') content.innerHTML = getVPNPage();
+    else if (pageId === 'about') content.innerHTML = getAboutPage();
+    else if (pageId === 'contact') content.innerHTML = getContactPage();
+    else if (pageId === 'adminRequests') {
+        if (!isAdmin) {
+            showNotification('ACCESS DENIED');
+            showPage('home');
+            return;
+        }
+        content.innerHTML = getAdminRequestsPage();
+        loadVPNRequests();
     }
 }
 
@@ -78,7 +65,6 @@ function getHomePage() {
             <p>STARTING NOW, WE WRITE THE HISTORY OF THE INTERNET.</p>
             <p>OUR MISSION IS TO PROVIDE ACCESS TO INFORMATION FOR EVERYONE, EVERYWHERE.</p>
             <p>NO CENSORSHIP. NO RESTRICTIONS. ONLY FREEDOM.</p>
-            
             ${isAdmin ? `
                 <div class="vpn-card">
                     <h3>ADMIN PANEL</h3>
@@ -99,7 +85,6 @@ function getVPNPage() {
             </div>
         `;
     }
-    
     return `
         <div class="page">
             <h1>FWO VPN</h1>
@@ -111,10 +96,8 @@ function getVPNPage() {
                 <p>> MILITARY-GRADE ENCRYPTION</p>
                 <p>> ACCESS FROM ANYWHERE</p>
                 <p>> 10 GBIT/S SERVERS</p>
-                
                 <button class="vpn-btn" onclick="showRequestForm()">REQUEST ACCESS</button>
             </div>
-            
             <div id="requestForm" style="display: none;" class="request-form">
                 <h2>SUBMIT YOUR REQUEST</h2>
                 <form onsubmit="submitVPNRequest(event)">
@@ -169,7 +152,7 @@ function getAdminRequestsPage() {
                         <th>REASON</th>
                         <th>DATE</th>
                         <th>STATUS</th>
-                        <th>ACTION / RESPONSE</th>
+                        <th>ACTION</th>
                     </tr>
                 </thead>
                 <tbody id="requestsTableBody">
@@ -180,15 +163,12 @@ function getAdminRequestsPage() {
     `;
 }
 
-async function updateAuthSection() {
+function updateAuthSection() {
     const authSection = document.getElementById('authSection');
-    
     if (currentUser) {
-        try {
-            const userDoc = await db.collection('users').doc(currentUser.uid).get();
-            const userData = userDoc.data();
-            const username = userData?.username || currentUser.displayName || currentUser.email;
-            
+        db.collection('users').doc(currentUser.uid).get().then((doc) => {
+            const userData = doc.data();
+            const username = userData?.username || currentUser.email;
             authSection.innerHTML = `
                 <div style="margin-bottom: 10px;">
                     > LOGGED AS: ${username}<br>
@@ -196,15 +176,15 @@ async function updateAuthSection() {
                 </div>
                 <button class="auth-btn" onclick="logout()">[LOGOUT]</button>
             `;
-        } catch (error) {
+        }).catch(() => {
             authSection.innerHTML = `
                 <div style="margin-bottom: 10px;">
-                    > LOGGED AS: ${currentUser.displayName || currentUser.email}<br>
+                    > LOGGED AS: ${currentUser.email}<br>
                     > STATUS: ${isAdmin ? 'ADMIN' : 'USER'}
                 </div>
                 <button class="auth-btn" onclick="logout()">[LOGOUT]</button>
             `;
-        }
+        });
     } else {
         authSection.innerHTML = `
             <input type="text" id="loginUsername" class="auth-input" placeholder="USERNAME">
@@ -250,15 +230,8 @@ async function login() {
     }
     
     try {
-        const userSnapshot = await db.collection('users').where('username', '==', username).get();
-        
-        if (userSnapshot.empty) {
-            showNotification('USER NOT FOUND');
-            return;
-        }
-        
-        const userData = userSnapshot.docs[0].data();
-        await auth.signInWithEmailAndPassword(userData.email, password);
+        const email = `${username.toLowerCase()}@fwo.local`;
+        await auth.signInWithEmailAndPassword(email, password);
         showNotification('LOGIN SUCCESSFUL');
     } catch (error) {
         showNotification('ERROR: ' + error.message);
@@ -276,13 +249,8 @@ async function register() {
     
     try {
         const email = `${username.toLowerCase()}@fwo.local`;
-        
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
-        
-        await user.updateProfile({
-            displayName: username
-        });
         
         await db.collection('users').doc(user.uid).set({
             username: username,
@@ -304,10 +272,9 @@ async function logout() {
 
 async function checkIfAdmin(userId) {
     try {
-        const userDoc = await db.collection('users').doc(userId).get();
-        isAdmin = userDoc.data()?.isAdmin === true;
+        const doc = await db.collection('users').doc(userId).get();
+        isAdmin = doc.data()?.isAdmin === true;
     } catch (error) {
-        console.error('Error checking admin status:', error);
         isAdmin = false;
     }
 }
@@ -352,10 +319,7 @@ async function submitVPNRequest(event) {
 
 async function loadVPNRequests() {
     try {
-        const snapshot = await db.collection('vpn_requests')
-            .orderBy('createdAt', 'desc')
-            .get();
-        
+        const snapshot = await db.collection('vpn_requests').orderBy('createdAt', 'desc').get();
         const tableBody = document.getElementById('requestsTableBody');
         let html = '';
         
@@ -363,51 +327,40 @@ async function loadVPNRequests() {
             html = '<tr><td colspan="6">NO REQUESTS FOUND</td></tr>';
         } else {
             snapshot.forEach(doc => {
-                const request = doc.data();
-                const requestId = doc.id;
-                const createdAt = request.createdAt ? request.createdAt.toDate().toLocaleString() : 'Unknown';
-                
+                const r = doc.data();
                 html += `
                     <tr>
-                        <td><strong>${request.username || 'Unknown'}</strong></td>
-                        <td>${request.country || 'Unknown'}</td>
-                        <td>${request.reason || 'No reason provided'}</td>
-                        <td>${createdAt}</td>
-                        <td>${request.status === 'pending' ? '⏳ PENDING' : '✅ ANSWERED'}</td>
+                        <td><strong>${r.username || 'Unknown'}</strong></td>
+                        <td>${r.country || 'Unknown'}</td>
+                        <td>${r.reason || ''}</td>
+                        <td>${r.createdAt ? r.createdAt.toDate().toLocaleString() : 'Unknown'}</td>
+                        <td>${r.status === 'pending' ? '⏳ PENDING' : '✅ ANSWERED'}</td>
                         <td>
-                            ${request.status === 'pending' ? `
-                                <input type="text" id="response-${requestId}" class="admin-response-input" placeholder="TYPE YOUR RESPONSE HERE">
-                                <button class="admin-response-btn" onclick="respondToRequest('${requestId}')">SEND RESPONSE</button>
-                            ` : request.adminResponse || 'No response yet'}
+                            ${r.status === 'pending' ? `
+                                <input type="text" id="response-${doc.id}" class="admin-response-input" placeholder="RESPONSE">
+                                <button class="admin-response-btn" onclick="respondToRequest('${doc.id}')">SEND</button>
+                            ` : r.adminResponse || 'Done'}
                         </td>
                     </tr>
                 `;
             });
         }
-        
         tableBody.innerHTML = html;
     } catch (error) {
-        console.error('Error loading requests:', error);
         showNotification('ERROR LOADING REQUESTS');
     }
 }
 
 async function respondToRequest(requestId) {
     const response = document.getElementById(`response-${requestId}`).value;
-    
     if (!response) {
-        showNotification('PLEASE ENTER A RESPONSE');
+        showNotification('ENTER RESPONSE');
         return;
     }
     
     try {
         const requestDoc = await db.collection('vpn_requests').doc(requestId).get();
         const requestData = requestDoc.data();
-        
-        if (!requestData) {
-            showNotification('REQUEST NOT FOUND');
-            return;
-        }
         
         await db.collection('vpn_requests').doc(requestId).update({
             status: 'answered',
@@ -422,7 +375,7 @@ async function respondToRequest(requestId) {
             createdAt: new Date()
         });
         
-        showNotification('RESPONSE SENT TO USER');
+        showNotification('RESPONSE SENT');
         loadVPNRequests();
     } catch (error) {
         showNotification('ERROR: ' + error.message);
@@ -431,30 +384,23 @@ async function respondToRequest(requestId) {
 
 async function checkForNewMessages() {
     if (!currentUser) return;
-    
     try {
         const snapshot = await db.collection('admin_messages')
             .where('userId', '==', currentUser.uid)
             .where('read', '==', false)
             .get();
-        
-        if (!snapshot.empty) {
-            showMessageBadge(snapshot.size);
-        }
-    } catch (error) {
-        console.error('Error checking messages:', error);
-    }
+        if (!snapshot.empty) showMessageBadge(snapshot.size);
+    } catch (error) {}
 }
 
 function showMessageBadge(count) {
-    const oldBadge = document.querySelector('.message-badge');
-    if (oldBadge) oldBadge.remove();
+    const old = document.querySelector('.message-badge');
+    if (old) old.remove();
     
     const badge = document.createElement('div');
     badge.className = 'message-badge';
     badge.innerHTML = `[${count} NEW MESSAGE${count > 1 ? 'S' : ''}]`;
     badge.onclick = showMessages;
-    
     document.body.appendChild(badge);
 }
 
@@ -468,61 +414,38 @@ async function showMessages() {
         let messages = '';
         snapshot.forEach(doc => {
             const msg = doc.data();
-            const date = msg.createdAt ? msg.createdAt.toDate().toLocaleString() : 'Unknown';
             messages += `
-                <div style="border-bottom: 1px solid #333; padding: 10px; margin-bottom: 10px;">
-                    <small style="color: #666;">${date}</small>
-                    <p style="white-space: pre-line; margin-top: 5px;">${msg.message}</p>
+                <div style="border-bottom:1px solid #333;padding:10px;">
+                    <small>${msg.createdAt ? msg.createdAt.toDate().toLocaleString() : ''}</small>
+                    <p style="white-space:pre-line">${msg.message}</p>
                 </div>
             `;
-            
             db.collection('admin_messages').doc(doc.id).update({ read: true });
         });
         
         showModal('YOUR MESSAGES', messages || '<p>NO MESSAGES</p>');
-        
         const badge = document.querySelector('.message-badge');
         if (badge) badge.remove();
-    } catch (error) {
-        showNotification('ERROR LOADING MESSAGES');
-    }
+    } catch (error) {}
 }
 
 function setupModal() {
     const modal = document.getElementById('messageModal');
-    const span = document.getElementsByClassName('close')[0];
-    
-    span.onclick = function() {
-        modal.style.display = 'none';
-    };
-    
-    window.onclick = function(event) {
-        if (event.target == modal) {
-            modal.style.display = 'none';
-        }
-    };
+    const span = document.querySelector('.close');
+    span.onclick = () => modal.style.display = 'none';
+    window.onclick = (e) => { if (e.target == modal) modal.style.display = 'none'; };
 }
 
 function showModal(title, content) {
     const modal = document.getElementById('messageModal');
-    const modalBody = document.getElementById('modalBody');
-    
-    modalBody.innerHTML = `
-        <h2>${title}</h2>
-        ${content}
-    `;
-    
+    document.getElementById('modalBody').innerHTML = `<h2>${title}</h2>${content}`;
     modal.style.display = 'block';
 }
 
 function showNotification(message) {
-    const notification = document.createElement('div');
-    notification.className = 'notification';
-    notification.textContent = message;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.remove();
-    }, 3000);
+    const n = document.createElement('div');
+    n.className = 'notification';
+    n.textContent = message;
+    document.body.appendChild(n);
+    setTimeout(() => n.remove(), 3000);
 }
