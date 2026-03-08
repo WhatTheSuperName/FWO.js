@@ -1,12 +1,12 @@
 // ==================== FIREBASE КОНФИГУРАЦИЯ ====================
-// ВСТАВЬ СВОИ ДАННЫЕ ИЗ FIREBASE КОНСОЛИ!!!
+// ТВОИ ДАННЫЕ ИЗ FIREBASE
 const firebaseConfig = {
-    apiKey: "ВСТАВЬТЕ_СВОЙ_API_KEY",
-    authDomain: "ВСТАВЬТЕ_СВОЙ_AUTH_DOMAIN",
-    projectId: "ВСТАВЬТЕ_СВОЙ_PROJECT_ID",
-    storageBucket: "ВСТАВЬТЕ_СВОЙ_STORAGE_BUCKET",
-    messagingSenderId: "ВСТАВЬТЕ_СВОЙ_MESSAGING_SENDER_ID",
-    appId: "ВСТАВЬТЕ_СВОЙ_APP_ID"
+    apiKey: "AIzaSyAvxon5UX3WOR2178vd4E0_oKNCCAE3EDo",
+    authDomain: "fwo-project-8b52b.firebaseapp.com",
+    projectId: "fwo-project-8b52b",
+    storageBucket: "fwo-project-8b52b.firebasestorage.app",
+    messagingSenderId: "915131259753",
+    appId: "1:915131259753:web:216cbc6ba2a86bdf7dfbf8"
 };
 
 // Инициализация Firebase
@@ -49,7 +49,7 @@ function showPage(pageId) {
     // Обновляем активную ссылку
     document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.remove('active');
-        if (link.getAttribute('onclick').includes(pageId)) {
+        if (link.getAttribute('onclick') && link.getAttribute('onclick').includes(pageId)) {
             link.classList.add('active');
         }
     });
@@ -69,6 +69,15 @@ function showPage(pageId) {
         case 'contact':
             content.innerHTML = getContactPage();
             break;
+        case 'adminRequests':
+            if (!isAdmin) {
+                showNotification('ACCESS DENIED');
+                showPage('home');
+                return;
+            }
+            content.innerHTML = getAdminRequestsPage();
+            loadVPNRequests();
+            break;
     }
 }
 
@@ -78,8 +87,8 @@ function getHomePage() {
         <div class="page">
             <h1>FWO - FREEDOM WARRIORS ONLINE</h1>
             <div class="status-message">
-                > SYSTEM STATUS: ONLINE
-                > ENCRYPTION: ACTIVE
+                > SYSTEM STATUS: ONLINE<br>
+                > ENCRYPTION: ACTIVE<br>
                 > NETWORK: SECURE
             </div>
             <p>WE ARE A GROUP OF SPECIALIZED INDIVIDUALS FIGHTING FOR FREEDOM ON THE INTERNET.</p>
@@ -204,7 +213,7 @@ function updateAuthSection() {
         `;
     } else {
         authSection.innerHTML = `
-            <input type="email" id="loginEmail" class="auth-input" placeholder="EMAIL" autocomplete="off">
+            <input type="email" id="loginEmail" class="auth-input" placeholder="EMAIL">
             <input type="password" id="loginPassword" class="auth-input" placeholder="PASSWORD">
             <button class="auth-btn" onclick="login()">[LOGIN]</button>
             <button class="auth-btn" onclick="showRegister()">[REGISTER]</button>
@@ -216,6 +225,26 @@ function updateAuthSection() {
             </div>
         `;
     }
+
+    // Добавляем ссылку на админку если пользователь админ
+    if (isAdmin) {
+        const navLinks = document.querySelector('.nav-links');
+        let adminLinkExists = false;
+        document.querySelectorAll('.nav-link').forEach(link => {
+            if (link.getAttribute('onclick') && link.getAttribute('onclick').includes('adminRequests')) {
+                adminLinkExists = true;
+            }
+        });
+        
+        if (!adminLinkExists) {
+            const adminLink = document.createElement('a');
+            adminLink.href = '#';
+            adminLink.className = 'nav-link';
+            adminLink.setAttribute('onclick', 'showPage(\'adminRequests\')');
+            adminLink.textContent = '[ADMIN PANEL]';
+            navLinks.appendChild(adminLink);
+        }
+    }
 }
 
 function showRegister() {
@@ -225,6 +254,11 @@ function showRegister() {
 async function login() {
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
+    
+    if (!email || !password) {
+        showNotification('PLEASE ENTER EMAIL AND PASSWORD');
+        return;
+    }
     
     try {
         await auth.signInWithEmailAndPassword(email, password);
@@ -288,6 +322,11 @@ async function submitVPNRequest(event) {
     const country = document.getElementById('country').value;
     const reason = document.getElementById('reason').value;
     
+    if (!country || !reason) {
+        showNotification('PLEASE FILL ALL FIELDS');
+        return;
+    }
+    
     try {
         // Получаем username пользователя
         const userDoc = await db.collection('users').doc(currentUser.uid).get();
@@ -323,33 +362,35 @@ async function loadVPNRequests() {
         const tableBody = document.getElementById('requestsTableBody');
         let html = '';
         
-        snapshot.forEach(doc => {
-            const request = doc.data();
-            const requestId = doc.id;
-            
-            html += `
-                <tr>
-                    <td>${request.username}</td>
-                    <td>${request.country}</td>
-                    <td>${request.reason}</td>
-                    <td>${request.status}</td>
-                    <td>
-                        ${request.status === 'pending' ? `
-                            <input type="text" id="response-${requestId}" class="admin-response-input" placeholder="YOUR RESPONSE">
-                            <button class="admin-response-btn" onclick="respondToRequest('${requestId}')">SEND</button>
-                        ` : request.adminResponse || 'NO RESPONSE'}
-                    </td>
-                </tr>
-            `;
-        });
-        
-        if (html === '') {
+        if (snapshot.empty) {
             html = '<tr><td colspan="5">NO REQUESTS FOUND</td></tr>';
+        } else {
+            snapshot.forEach(doc => {
+                const request = doc.data();
+                const requestId = doc.id;
+                const createdAt = request.createdAt ? request.createdAt.toDate().toLocaleString() : 'Unknown';
+                
+                html += `
+                    <tr>
+                        <td>${request.username || 'Unknown'}</td>
+                        <td>${request.country || 'Unknown'}</td>
+                        <td>${request.reason || 'No reason provided'}</td>
+                        <td>${request.status || 'pending'}</td>
+                        <td>
+                            ${request.status === 'pending' ? `
+                                <input type="text" id="response-${requestId}" class="admin-response-input" placeholder="YOUR RESPONSE">
+                                <button class="admin-response-btn" onclick="respondToRequest('${requestId}')">SEND</button>
+                            ` : request.adminResponse || 'NO RESPONSE YET'}
+                        </td>
+                    </tr>
+                `;
+            });
         }
         
         tableBody.innerHTML = html;
     } catch (error) {
         console.error('Error loading requests:', error);
+        showNotification('ERROR LOADING REQUESTS');
     }
 }
 
@@ -366,6 +407,11 @@ async function respondToRequest(requestId) {
         const requestDoc = await db.collection('vpn_requests').doc(requestId).get();
         const requestData = requestDoc.data();
         
+        if (!requestData) {
+            showNotification('REQUEST NOT FOUND');
+            return;
+        }
+        
         // Обновляем статус заявки
         await db.collection('vpn_requests').doc(requestId).update({
             status: 'answered',
@@ -376,7 +422,7 @@ async function respondToRequest(requestId) {
         // Отправляем сообщение пользователю
         await db.collection('admin_messages').add({
             userId: requestData.userId,
-            message: `YOUR VPN REQUEST HAS BEEN PROCESSED.\nADMIN RESPONSE: ${response}`,
+            message: `YOUR VPN REQUEST HAS BEEN PROCESSED.\n\nADMIN RESPONSE: ${response}`,
             read: false,
             createdAt: new Date()
         });
@@ -430,10 +476,11 @@ async function showMessages() {
         let messages = '';
         snapshot.forEach(doc => {
             const msg = doc.data();
+            const date = msg.createdAt ? msg.createdAt.toDate().toLocaleString() : 'Unknown';
             messages += `
-                <div style="border-bottom: 1px solid #333; padding: 10px;">
-                    <small>${msg.createdAt.toDate().toLocaleString()}</small>
-                    <p>${msg.message}</p>
+                <div style="border-bottom: 1px solid #333; padding: 10px; margin-bottom: 10px;">
+                    <small style="color: #666;">${date}</small>
+                    <p style="white-space: pre-line; margin-top: 5px;">${msg.message}</p>
                 </div>
             `;
             
@@ -442,7 +489,7 @@ async function showMessages() {
         });
         
         // Показываем в модальном окне
-        showModal('YOUR MESSAGES', messages);
+        showModal('YOUR MESSAGES', messages || '<p>NO MESSAGES</p>');
         
         // Удаляем бейдж
         const badge = document.querySelector('.message-badge');
@@ -492,45 +539,3 @@ function showNotification(message) {
         notification.remove();
     }, 3000);
 }
-
-// ==================== ПЕРЕХВАТЧИК СТРАНИЦ ДЛЯ АДМИНА ====================
-// Расширяем функцию showPage для обработки админской страницы
-const originalShowPage = showPage;
-showPage = function(pageId) {
-    if (pageId === 'adminRequests') {
-        if (!isAdmin) {
-            showNotification('ACCESS DENIED');
-            return;
-        }
-        
-        document.getElementById('mainContent').innerHTML = getAdminRequestsPage();
-        loadVPNRequests();
-        
-        // Обновляем активную ссылку
-        document.querySelectorAll('.nav-link').forEach(link => {
-            link.classList.remove('active');
-        });
-    } else {
-        originalShowPage(pageId);
-    }
-};
-
-// Добавляем обработку страницы adminRequests в навигацию
-// Добавим ссылку в меню, если пользователь админ
-const originalUpdateAuthSection = updateAuthSection;
-updateAuthSection = function() {
-    originalUpdateAuthSection();
-    
-    if (isAdmin) {
-        // Добавляем ссылку на админку в меню
-        const navLinks = document.querySelector('.nav-links');
-        if (!document.querySelector('[onclick="showPage(\'adminRequests\')"]')) {
-            const adminLink = document.createElement('a');
-            adminLink.href = '#';
-            adminLink.className = 'nav-link';
-            adminLink.setAttribute('onclick', 'showPage(\'adminRequests\')');
-            adminLink.textContent = '[ADMIN PANEL]';
-            navLinks.appendChild(adminLink);
-        }
-    }
-};
