@@ -334,12 +334,21 @@ async function loadVPNRequests() {
         } else {
             snapshot.forEach(doc => {
                 const r = doc.data();
+                let date = 'Unknown';
+                if (r.createdAt) {
+                    if (r.createdAt.toDate) {
+                        date = r.createdAt.toDate().toLocaleString();
+                    } else {
+                        date = new Date(r.createdAt).toLocaleString();
+                    }
+                }
+                
                 html += `
                     <tr>
                         <td><strong>${r.username || 'Unknown'}</strong></td>
                         <td>${r.country || 'Unknown'}</td>
                         <td>${r.reason || ''}</td>
-                        <td>${r.createdAt ? r.createdAt.toDate().toLocaleString() : 'Unknown'}</td>
+                        <td>${date}</td>
                         <td>${r.status === 'pending' ? '⏳ PENDING' : '✅ ANSWERED'}</td>
                         <td>
                             ${r.status === 'pending' ? `
@@ -353,7 +362,7 @@ async function loadVPNRequests() {
         }
         tableBody.innerHTML = html;
     } catch (error) {
-        showNotification('ERROR LOADING REQUESTS');
+        document.getElementById('requestsTableBody').innerHTML = '<tr><td colspan="6">ERROR LOADING REQUESTS: ' + error.message + '</td></tr>';
     }
 }
 
@@ -420,9 +429,18 @@ async function showMessages() {
         let messages = '';
         snapshot.forEach(doc => {
             const msg = doc.data();
+            let date = 'Unknown';
+            if (msg.createdAt) {
+                if (msg.createdAt.toDate) {
+                    date = msg.createdAt.toDate().toLocaleString();
+                } else {
+                    date = new Date(msg.createdAt).toLocaleString();
+                }
+            }
+            
             messages += `
                 <div style="border-bottom:1px solid #333;padding:10px;">
-                    <small>${msg.createdAt ? msg.createdAt.toDate().toLocaleString() : ''}</small>
+                    <small>${date}</small>
                     <p style="white-space:pre-line">${msg.message}</p>
                 </div>
             `;
