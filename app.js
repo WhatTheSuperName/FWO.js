@@ -19,16 +19,29 @@ document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged((user) => {
         currentUser = user;
         if (user) {
-            checkIfAdmin(user.uid);
+            checkIfAdminAndUpdate(user.uid);
             checkForNewMessages();
         } else {
             isAdmin = false;
+            updateAuthSection();
+            showPage(currentPage);
         }
-        updateAuthSection();
-        showPage(currentPage);
     });
     setupModal();
 });
+
+async function checkIfAdminAndUpdate(userId) {
+    try {
+        const doc = await db.collection('users').doc(userId).get();
+        const userData = doc.data();
+        isAdmin = userData?.isAdmin === true;
+        updateAuthSection();
+        showPage(currentPage);
+    } catch (error) {
+        isAdmin = false;
+        updateAuthSection();
+    }
+}
 
 function showPage(pageId) {
     currentPage = pageId;
@@ -165,10 +178,12 @@ function getAdminRequestsPage() {
 
 function updateAuthSection() {
     const authSection = document.getElementById('authSection');
+    
     if (currentUser) {
         db.collection('users').doc(currentUser.uid).get().then((doc) => {
             const userData = doc.data();
             const username = userData?.username || currentUser.email;
+            
             authSection.innerHTML = `
                 <div style="margin-bottom: 10px;">
                     > LOGGED AS: ${username}<br>
@@ -268,15 +283,6 @@ async function register() {
 async function logout() {
     await auth.signOut();
     showPage('home');
-}
-
-async function checkIfAdmin(userId) {
-    try {
-        const doc = await db.collection('users').doc(userId).get();
-        isAdmin = doc.data()?.isAdmin === true;
-    } catch (error) {
-        isAdmin = false;
-    }
 }
 
 function showRequestForm() {
